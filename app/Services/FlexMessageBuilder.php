@@ -13,6 +13,10 @@ class FlexMessageBuilder
         $rendered = $this->interpolate($jsonTemplate, $variables);
         $decoded = json_decode($rendered, true, 512, JSON_THROW_ON_ERROR);
 
+        // Sanitize: LINE silently drops Flex Messages that contain uri actions with
+        // empty string — replace any empty uri with a safe fallback.
+        $this->sanitizeUriActions($decoded);
+
         return $decoded;
     }
 
@@ -32,6 +36,48 @@ class FlexMessageBuilder
                 $flex,
             ],
         ];
+    }
+
+    /**
+     * Recursively walk the Flex JSON tree and replace any empty, localhost, or
+     * non-public `uri` inside an action node with a safe URL so LINE does not
+     * silently discard the message.
+     *
+     * LINE rejects Flex Messages whose button/action uri:
+     *  - is empty string
+     *  - points to localhost / 127.0.0.1 (not publicly reachable)
+     *  - is missing the scheme
+     */
+    private function sanitizeUriActions(array &$node): void
+    {
+        foreach ($node as $key => &$value) {
+            if (is_array($value)) {
+                if (isset($value['type']) && $value['type'] === 'uri') {
+                    $uri = $value['uri'] ?? '';
+                    if ($this->isUnreachableUri($uri)) {
+                        $value['uri'] = 'https://moph.go.th'; // safe public fallback
+                    }
+                }
+                $this->sanitizeUriActions($value);
+            }
+        }
+    }
+
+    /**
+     * Return true when the URI cannot be reached by LINE's servers.
+     */
+    private function isUnreachableUri(string $uri): bool
+    {
+        if ($uri === '') return true;
+
+        $host = parse_url($uri, PHP_URL_HOST) ?? '';
+
+        // localhost, loopback, and private/link-local addresses
+        return in_array($host, ['localhost', '127.0.0.1', '::1'], true)
+            || str_starts_with($host, '192.168.')
+            || str_starts_with($host, '10.')
+            || str_starts_with($host, '172.')
+            || $host === '';
     }
 
     private function interpolate(string $template, array $vars): string

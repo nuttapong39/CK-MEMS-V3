@@ -28,3 +28,6 @@ Thumbs.db
 /composer.phar
 /storage/test_*
 /install.log
+
+.gemini/
+gha-creds-*.json
