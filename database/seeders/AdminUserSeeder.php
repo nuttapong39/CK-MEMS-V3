@@ -16,17 +16,18 @@ class AdminUserSeeder extends Seeder
         $admin = User::updateOrCreate(
             ['email' => 'admin@ck-mems.local'],
             [
-                'hospital_id' => $hospital->id,
-                'name' => 'Administrator',
-                'full_name' => 'ผู้ดูแลระบบ CK-MEMS',
-                'employee_code' => 'ADMIN001',
-                'password' => Hash::make('admin1234'),
-                'is_active' => true,
+                'hospital_id'    => $hospital->id,
+                'username'       => 'Administrator',
+                'name'           => 'Administrator',
+                'full_name'      => 'ผู้ดูแลระบบ CK-MEMS',
+                'employee_code'  => 'ADMIN001',
+                'password'       => Hash::make('admin1234'),
+                'is_active'      => true,
                 'email_verified_at' => now(),
             ]
         );
         $admin->syncRoles(['admin']);
 
-        $this->command->info('Admin user: admin@ck-mems.local / admin1234');
+        $this->command->info('Admin user: username=Administrator / admin1234');
     }
 }

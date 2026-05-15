@@ -221,8 +221,8 @@ async function startProviderId() {
             >
                 <p class="text-amber-300 font-semibold mb-2">ข้อมูลเริ่มต้นระบบ (default)</p>
                 <div class="space-y-1 text-slate-300">
-                    <div class="flex gap-2"><span class="text-slate-500 w-20">Username:</span><code class="text-amber-200">Administrator</code></div>
-                    <div class="flex gap-2"><span class="text-slate-500 w-20">Password:</span><code class="text-amber-200">admin1234</code></div>
+                    <div class="flex gap-2"><span class="text-slate-500 w-20">Username:</span><code class="text-amber-200">admin</code></div>
+                    <div class="flex gap-2"><span class="text-slate-500 w-20">Password:</span><code class="text-amber-200">adminck</code></div>
                 </div>
                 <p class="text-slate-500 mt-2">หากเปลี่ยนรหัสผ่านแล้ว ใช้ <router-link :to="{ name: 'reset-password' }" class="text-blue-400 underline">หน้ารีเซ็ตฉุกเฉิน</router-link></p>
             </div>

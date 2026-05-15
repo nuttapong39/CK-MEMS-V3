@@ -172,12 +172,20 @@ class RepairController extends Controller
             RepairTicket::STATUS_REPAIRED     => FlexMessageTemplate::KEY_REPAIR_COMPLETED,
         ];
         if (isset($tplMap[$updated->status])) {
-            app(MophAlertService::class)->notify(
+            $moph    = app(MophAlertService::class);
+            $tplKey  = $tplMap[$updated->status];
+            $vars    = $moph->buildRepairVariables($updated);
+
+            // 1) Hospital-wide notification (admin/staff LINE group)
+            $moph->notify(
                 $request->user()->hospital,
-                $tplMap[$updated->status],
-                app(MophAlertService::class)->buildRepairVariables($updated),
+                $tplKey,
+                $vars,
                 'repair.transition:'.$updated->id.':'.$updated->status,
             );
+
+            // 2) Personal notification to the ticket reporter (using their own MOPH keys)
+            $moph->notifyReporter($updated, $tplKey, $vars);
         }
 
         return new RepairTicketResource($updated);

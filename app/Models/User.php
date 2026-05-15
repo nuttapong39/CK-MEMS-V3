@@ -23,6 +23,7 @@ class User extends Authenticatable implements JWTSubject
         'department_id',
         'employee_code',
         'name',
+        'username',
         'full_name',
         'email',
         'phone',
@@ -31,11 +32,14 @@ class User extends Authenticatable implements JWTSubject
         'is_active',
         'last_login_at',
         'password',
+        'moph_client_key',
+        'moph_secret_key',
     ];
 
     protected $hidden = [
         'password',
         'remember_token',
+        'moph_secret_key',   // ไม่ expose ใน API response โดยตรง
     ];
 
     protected function casts(): array

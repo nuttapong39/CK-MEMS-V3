@@ -53,29 +53,35 @@ class UserController extends Controller
     public function store(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'employee_code' => ['nullable', 'string', 'max:64'],
-            'full_name' => ['required', 'string', 'max:255'],
-            'name' => ['nullable', 'string', 'max:255'],
-            'email' => ['required', 'email', 'unique:users,email'],
-            'phone' => ['nullable', 'string', 'max:32'],
-            'password' => ['required', 'string', 'min:6'],
-            'department_id' => ['nullable', 'integer', 'exists:departments,id'],
-            'role' => ['required', 'string', Rule::exists('roles', 'name')->where('guard_name', 'api')],
-            'is_active' => ['boolean'],
+            'username'        => ['required', 'string', 'max:64', 'alpha_dash', Rule::unique('users', 'username')],
+            'employee_code'   => ['nullable', 'string', 'max:64'],
+            'full_name'       => ['required', 'string', 'max:255'],
+            'name'            => ['nullable', 'string', 'max:255'],
+            'email'           => ['required', 'email', 'unique:users,email'],
+            'phone'           => ['nullable', 'string', 'max:32'],
+            'password'        => ['required', 'string', 'min:6'],
+            'department_id'   => ['nullable', 'integer', 'exists:departments,id'],
+            'role'            => ['required', 'string', Rule::exists('roles', 'name')->where('guard_name', 'api')],
+            'is_active'       => ['boolean'],
+            'moph_client_key' => ['nullable', 'string', 'max:128'],
+            'moph_secret_key' => ['nullable', 'string', 'max:128'],
         ]);
 
         $hospital = $request->user()->hospital;
         $user = User::create([
-            'hospital_id' => $hospital->id,
-            'department_id' => $data['department_id'] ?? null,
-            'employee_code' => $data['employee_code'] ?? null,
-            'full_name' => $data['full_name'],
-            'name' => $data['name'] ?? $data['full_name'],
-            'email' => $data['email'],
-            'phone' => $data['phone'] ?? null,
-            'password' => Hash::make($data['password']),
-            'is_active' => $data['is_active'] ?? true,
+            'hospital_id'    => $hospital->id,
+            'department_id'  => $data['department_id'] ?? null,
+            'employee_code'  => $data['employee_code'] ?? null,
+            'username'       => $data['username'],
+            'full_name'      => $data['full_name'],
+            'name'           => $data['name'] ?? $data['username'],
+            'email'          => $data['email'],
+            'phone'          => $data['phone'] ?? null,
+            'password'       => Hash::make($data['password']),
+            'is_active'      => $data['is_active'] ?? true,
             'email_verified_at' => now(),
+            'moph_client_key' => $data['moph_client_key'] ?? null,
+            'moph_secret_key' => $data['moph_secret_key'] ?? null,
         ]);
 
         // Assign roles for both web + api guards (since some lookups happen via web)
@@ -95,15 +101,18 @@ class UserController extends Controller
         abort_if($user->hospital_id !== $request->user()->hospital_id, 404);
 
         $data = $request->validate([
-            'employee_code' => ['nullable', 'string', 'max:64'],
-            'full_name'     => ['sometimes', 'string', 'max:255'],
-            'name'          => ['sometimes', 'string', 'max:255', Rule::unique('users', 'name')->ignore($user->id)],
-            'email'         => ['sometimes', 'email', Rule::unique('users', 'email')->ignore($user->id)],
-            'phone'         => ['nullable', 'string', 'max:32'],
-            'department_id' => ['nullable', 'integer', 'exists:departments,id'],
-            'role'          => ['sometimes', 'string', Rule::exists('roles', 'name')->where('guard_name', 'api')],
-            'is_active'     => ['sometimes', 'boolean'],
-            'password'      => ['sometimes', 'nullable', 'string', 'min:6'],
+            'username'        => ['sometimes', 'string', 'max:64', 'alpha_dash', Rule::unique('users', 'username')->ignore($user->id)],
+            'employee_code'   => ['nullable', 'string', 'max:64'],
+            'full_name'       => ['sometimes', 'string', 'max:255'],
+            'name'            => ['sometimes', 'string', 'max:255', Rule::unique('users', 'name')->ignore($user->id)],
+            'email'           => ['sometimes', 'email', Rule::unique('users', 'email')->ignore($user->id)],
+            'phone'           => ['nullable', 'string', 'max:32'],
+            'department_id'   => ['nullable', 'integer', 'exists:departments,id'],
+            'role'            => ['sometimes', 'string', Rule::exists('roles', 'name')->where('guard_name', 'api')],
+            'is_active'       => ['sometimes', 'boolean'],
+            'password'        => ['sometimes', 'nullable', 'string', 'min:6'],
+            'moph_client_key' => ['nullable', 'string', 'max:128'],
+            'moph_secret_key' => ['nullable', 'string', 'max:128'],
         ]);
 
         $payload = collect($data)->except(['password', 'role'])->toArray();

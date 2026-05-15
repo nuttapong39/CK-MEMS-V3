@@ -19,9 +19,18 @@ class AuthController extends Controller
             'password' => ['required', 'string', 'min:4'],
         ]);
 
-        // Support login by username (name field) or email
-        $field = filter_var($data['username'], FILTER_VALIDATE_EMAIL) ? 'email' : 'name';
-        $token = Auth::guard('api')->attempt([$field => $data['username'], 'password' => $data['password']]);
+        // Primary: login by dedicated username column
+        $token = Auth::guard('api')->attempt(['username' => $data['username'], 'password' => $data['password']]);
+
+        // Fallback 1: old `name` field (for accounts created before username column existed)
+        if (! $token) {
+            $token = Auth::guard('api')->attempt(['name' => $data['username'], 'password' => $data['password']]);
+        }
+
+        // Fallback 2: email (for users who type their email address)
+        if (! $token && filter_var($data['username'], FILTER_VALIDATE_EMAIL)) {
+            $token = Auth::guard('api')->attempt(['email' => $data['username'], 'password' => $data['password']]);
+        }
 
         if (! $token) {
             throw ValidationException::withMessages([
@@ -103,7 +112,7 @@ class AuthController extends Controller
 
         $admin->forceFill(['password' => bcrypt($data['new_password'])])->save();
 
-        return response()->json(['message' => 'รีเซ็ตรหัสผ่านสำเร็จ', 'username' => $admin->name]);
+        return response()->json(['message' => 'รีเซ็ตรหัสผ่านสำเร็จ', 'username' => $admin->username ?? $admin->name]);
     }
 
     private function respondWithToken(string $token, User $user): JsonResponse

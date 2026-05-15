@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\FlexMessageTemplate;
 use App\Models\Hospital;
+use App\Models\MophAlertSetting;
 use App\Models\NotificationLog;
+use App\Models\RepairTicket;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -152,6 +154,90 @@ class MophAlertService
         } catch (\Throwable $e) {
             $setting->update(['last_test_at' => now(), 'last_test_status' => 'ERROR: '.$e->getMessage()]);
             return ['ok' => false, 'message' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Send a personal LINE notification to the ticket reporter using
+     * their own MOPH Alert credentials (moph_client_key / moph_secret_key).
+     * Called when repair status changes to ACKNOWLEDGED, IN_PROGRESS, or REPAIRED.
+     * Silently returns false when the reporter has no keys configured.
+     */
+    public function notifyReporter(
+        RepairTicket $ticket,
+        string $templateKey,
+        array $variables = [],
+    ): bool {
+        // Load reporter with MOPH keys (attributes are in $hidden so only accessible directly)
+        $ticket->loadMissing('reporter');
+        $reporter = $ticket->reporter;
+
+        if (! $reporter) {
+            return false;
+        }
+
+        // Re-query fresh to bypass any $hidden serialization — model attribute access always works
+        $reporter = $reporter->newQuery()->find($reporter->id);
+        if (! $reporter || empty($reporter->moph_client_key) || empty($reporter->moph_secret_key)) {
+            return false;
+        }
+
+        // Need endpoint URL from hospital setting (reuse same MOPH Alert endpoint)
+        $setting = $ticket->hospital?->mophAlertSetting
+            ?? MophAlertSetting::where('hospital_id', $ticket->hospital_id)->first();
+
+        if (! $setting || ! $setting->is_enabled || empty($setting->endpoint_url)) {
+            return false;
+        }
+
+        $template = FlexMessageTemplate::where('hospital_id', $ticket->hospital_id)
+            ->where('key', $templateKey)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $template) {
+            return false;
+        }
+
+        try {
+            $rendered = $this->flexBuilder->render($template->json_payload, $variables);
+            $payload  = $this->flexBuilder->buildPayload($rendered, $template->name, $template->alt_text);
+        } catch (\Throwable $e) {
+            Log::warning('MophAlert notifyReporter render error: '.$e->getMessage(), [
+                'ticket'   => $ticket->id,
+                'template' => $templateKey,
+            ]);
+            return false;
+        }
+
+        try {
+            $url = $this->normalizeEndpointUrl($setting->endpoint_url);
+
+            $response = Http::withHeaders([
+                    'client-key'   => $reporter->moph_client_key,
+                    'secret-key'   => $reporter->moph_secret_key,
+                    'Content-Type' => 'application/json',
+                ])
+                ->timeout(10)
+                ->post($url, $payload);
+
+            NotificationLog::create([
+                'hospital_id'      => $ticket->hospital_id,
+                'template_key'     => 'PERSONAL_'.$templateKey,
+                'event_signature'  => 'personal.reporter:'.$ticket->id.':'.$templateKey,
+                'payload_snapshot' => $payload,
+                'response_code'    => $response->status(),
+                'response_body'    => substr($response->body(), 0, 4000),
+                'sent_at'          => now(),
+            ]);
+
+            return $response->successful();
+        } catch (\Throwable $e) {
+            Log::warning('MophAlert notifyReporter HTTP error: '.$e->getMessage(), [
+                'ticket'   => $ticket->id,
+                'template' => $templateKey,
+            ]);
+            return false;
         }
     }
 
