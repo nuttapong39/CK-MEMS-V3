@@ -13,6 +13,10 @@
     RewriteCond %{HTTP:x-xsrf-token} .
     RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
 
+    # Storage proxy (no symlink support on shared hosting)
+    RewriteCond %{REQUEST_URI} ^/storage/(.+)$
+    RewriteRule ^storage/(.+)$ storage_serve.php?f=$1 [QSA,L]
+
     # Redirect Trailing Slashes If Not A Folder...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_URI} (.+)/$
