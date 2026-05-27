@@ -2,6 +2,7 @@
 
 use App\Models\Equipment;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Storage;
 
 // Public QR scan landing page (no auth required)
 Route::get('/qr/{idCode}', function (string $idCode) {

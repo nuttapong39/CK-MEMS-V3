@@ -30,10 +30,16 @@ class Equipment extends Model
         'name_th', 'name_en', 'manufacturer', 'model', 'serial_number',
         'maintenance_cycles_per_year', 'calibration_by', 'status',
         'purchase_date', 'purchase_price', 'warranty_until',
-        'note', 'qr_payload',
+        'note', 'image_path', 'qr_payload',
         'decommissioned_at', 'decommissioned_reason',
         'created_by', 'updated_by',
     ];
+
+    public function getImageUrlAttribute(): ?string
+    {
+        if (!$this->image_path) return null;
+        return url('storage/' . $this->image_path);
+    }
 
     protected $casts = [
         'qr_payload' => 'array',

@@ -15,6 +15,7 @@ use App\Services\MophAlertService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\Storage;
 
 class EquipmentController extends Controller
 {
@@ -129,6 +130,42 @@ class EquipmentController extends Controller
         $equipment->delete();
 
         return response()->json(['message' => 'ลบเครื่องมือเรียบร้อย']);
+    }
+
+    public function uploadImage(Request $request, Equipment $equipment): JsonResponse
+    {
+        abort_if($equipment->hospital_id !== $request->user()->hospital_id, 404);
+        abort_unless($request->user()->hasAnyRole(['admin', 'staff']), 403);
+
+        $request->validate([
+            'image' => ['required', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+        ]);
+
+        // Delete old image if exists
+        if ($equipment->image_path) {
+            Storage::disk('public')->delete($equipment->image_path);
+        }
+
+        $path = $request->file('image')->store('equipment-images', 'public');
+        $equipment->update(['image_path' => $path]);
+
+        return response()->json([
+            'image_url' => $equipment->fresh()->image_url,
+            'message' => 'อัปโหลดรูปภาพเรียบร้อย',
+        ]);
+    }
+
+    public function removeImage(Request $request, Equipment $equipment): JsonResponse
+    {
+        abort_if($equipment->hospital_id !== $request->user()->hospital_id, 404);
+        abort_unless($request->user()->hasAnyRole(['admin', 'staff']), 403);
+
+        if ($equipment->image_path) {
+            Storage::disk('public')->delete($equipment->image_path);
+            $equipment->update(['image_path' => null]);
+        }
+
+        return response()->json(['message' => 'ลบรูปภาพเรียบร้อย']);
     }
 
     public function previewIdCode(Request $request): JsonResponse

@@ -8,7 +8,7 @@ import EquipmentCodePickerModal from '../../components/equipment/EquipmentCodePi
 import {
     MagnifyingGlassPlusIcon, BuildingOffice2Icon, CalendarIcon,
     IdentificationIcon, BookmarkIcon, WrenchIcon, BeakerIcon,
-    ArrowLeftIcon, CheckIcon,
+    ArrowLeftIcon, CheckIcon, CameraIcon, PhotoIcon, XMarkIcon,
 } from '@heroicons/vue/24/outline';
 
 const router = useRouter();
@@ -16,6 +16,25 @@ const master = useMasterStore();
 
 const showCodePicker = ref(false);
 const submitting = ref(false);
+
+// Image upload
+const imageFile    = ref(null);
+const imagePreview = ref(null);
+const imageInput   = ref(null);
+const cameraInput  = ref(null);
+
+function onImageSelected(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    imageFile.value = file;
+    imagePreview.value = URL.createObjectURL(file);
+    e.target.value = '';
+}
+
+function clearImage() {
+    imageFile.value    = null;
+    imagePreview.value = null;
+}
 
 const form = ref({
     department_id: null,
@@ -70,6 +89,12 @@ async function submit() {
         const payload = { ...form.value };
         delete payload.id_code; // let server regenerate to ensure no race
         const { data } = await equipmentsApi.store(payload);
+        // Upload image if selected
+        if (imageFile.value) {
+            try {
+                await equipmentsApi.uploadImage(data.id, imageFile.value);
+            } catch (_) { /* image upload failure is non-fatal */ }
+        }
         await Swal.fire({
             icon: 'success',
             title: 'เพิ่มเครื่องมือเรียบร้อย',
@@ -290,6 +315,56 @@ async function submit() {
                     <label class="text-sm font-medium text-slate-700 block mb-1.5">หมายเหตุ</label>
                     <textarea v-model="form.note" rows="3" placeholder="เพิ่มข้อมูลที่เป็นประโยชน์ เช่น รับเข้าจากหน่วยงานใด" class="w-full px-4 py-2.5 rounded-xl border border-slate-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none transition resize-none"></textarea>
                 </div>
+            </div>
+
+            <!-- Section 4: รูปภาพเครื่องมือ -->
+            <div class="card-base p-6 space-y-4">
+                <div class="flex items-center gap-2 text-amber-600">
+                    <PhotoIcon class="w-5 h-5" />
+                    <h2 class="text-sm font-semibold text-slate-700">รูปภาพเครื่องมือ</h2>
+                    <span class="text-xs text-slate-400">(ไม่บังคับ)</span>
+                </div>
+
+                <!-- Preview -->
+                <div v-if="imagePreview" class="relative w-full max-w-xs mx-auto">
+                    <img :src="imagePreview" class="w-full h-48 object-contain rounded-2xl border border-slate-200 bg-slate-50" />
+                    <button
+                        type="button"
+                        @click="clearImage"
+                        class="absolute top-2 right-2 w-7 h-7 rounded-full bg-rose-500 text-white flex items-center justify-center hover:bg-rose-600 shadow transition"
+                    >
+                        <XMarkIcon class="w-4 h-4" />
+                    </button>
+                </div>
+
+                <!-- Upload buttons -->
+                <div class="flex flex-wrap gap-3">
+                    <!-- File from device -->
+                    <button
+                        type="button"
+                        @click="imageInput.click()"
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-sm font-medium transition"
+                    >
+                        <PhotoIcon class="w-5 h-5" />
+                        แนบรูปจากอุปกรณ์
+                    </button>
+
+                    <!-- Camera capture (mobile-friendly) -->
+                    <button
+                        type="button"
+                        @click="cameraInput.click()"
+                        class="flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-slate-300 hover:border-emerald-400 hover:bg-emerald-50 text-slate-600 hover:text-emerald-600 text-sm font-medium transition"
+                    >
+                        <CameraIcon class="w-5 h-5" />
+                        ถ่ายรูป
+                    </button>
+                </div>
+
+                <p class="text-xs text-slate-400">รองรับ JPG, PNG, WebP ขนาดไม่เกิน 5 MB</p>
+
+                <!-- Hidden inputs -->
+                <input ref="imageInput" type="file" accept="image/*" class="hidden" @change="onImageSelected" />
+                <input ref="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" @change="onImageSelected" />
             </div>
 
             <!-- Actions -->

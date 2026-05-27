@@ -49,6 +49,7 @@ class EquipmentResource extends JsonResource
                 'next_due_at' => $this->latestCalibration->next_due_at,
                 'result' => $this->latestCalibration->result,
             ] : null),
+            'image_url' => $this->image_url,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

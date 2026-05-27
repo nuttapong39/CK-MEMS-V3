@@ -53,6 +53,8 @@ Route::prefix('v1')->group(function () {
             Route::get('{equipment}', [EquipmentController::class, 'show']);
             Route::put('{equipment}', [EquipmentController::class, 'update'])->middleware('role:admin|staff');
             Route::delete('{equipment}', [EquipmentController::class, 'destroy'])->middleware('role:admin');
+            Route::post('{equipment}/image', [EquipmentController::class, 'uploadImage'])->middleware('role:admin|staff');
+            Route::delete('{equipment}/image', [EquipmentController::class, 'removeImage'])->middleware('role:admin|staff');
         });
 
         // Repair tickets

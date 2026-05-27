@@ -8,6 +8,7 @@ import {
     PencilSquareIcon, CheckIcon, XMarkIcon,
     BuildingOffice2Icon, IdentificationIcon, WrenchIcon,
     BeakerIcon, CalendarDaysIcon, DocumentTextIcon,
+    CameraIcon, PhotoIcon, TrashIcon,
 } from '@heroicons/vue/24/outline';
 import Swal from 'sweetalert2';
 
@@ -24,6 +25,34 @@ const loading    = ref(false);
 const saving     = ref(false);
 const editMode   = ref(false);
 const equipment  = ref(null);
+
+// Image upload state
+const imageFile      = ref(null);
+const imagePreview   = ref(null);
+const removeImageFlag = ref(false);
+const imageInput     = ref(null);
+const cameraInput    = ref(null);
+const uploadingImage = ref(false);
+
+function onImageSelected(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    imageFile.value    = file;
+    imagePreview.value = URL.createObjectURL(file);
+    removeImageFlag.value = false;
+    e.target.value = '';
+}
+
+function clearNewImage() {
+    imageFile.value    = null;
+    imagePreview.value = null;
+}
+
+function flagRemoveImage() {
+    removeImageFlag.value = true;
+    imageFile.value    = null;
+    imagePreview.value = null;
+}
 
 const canEdit = computed(() => auth.hasAnyRole(['admin', 'staff']));
 
@@ -84,10 +113,16 @@ function startEdit() {
         maintenance_cycles_per_year:  equipment.value.maintenance_cycles_per_year ?? 1,
         note:                         equipment.value.note ?? '',
     };
+    imageFile.value       = null;
+    imagePreview.value    = null;
+    removeImageFlag.value = false;
     editMode.value = true;
 }
 
 function cancelEdit() {
+    imageFile.value       = null;
+    imagePreview.value    = null;
+    removeImageFlag.value = false;
     editMode.value = false;
 }
 
@@ -95,8 +130,22 @@ async function saveEdit() {
     saving.value = true;
     try {
         const { data } = await equipmentsApi.update(equipment.value.id, form.value);
-        equipment.value = data.data ?? data;
+        let saved = data.data ?? data;
+
+        // Handle image changes
+        if (imageFile.value) {
+            const { data: imgData } = await equipmentsApi.uploadImage(saved.id, imageFile.value);
+            saved.image_url = imgData.image_url;
+        } else if (removeImageFlag.value) {
+            await equipmentsApi.removeImage(saved.id);
+            saved.image_url = null;
+        }
+
+        equipment.value = saved;
         editMode.value  = false;
+        imageFile.value       = null;
+        imagePreview.value    = null;
+        removeImageFlag.value = false;
         Swal.fire({ icon: 'success', title: 'บันทึกเรียบร้อย', timer: 1400, showConfirmButton: false });
         emit('saved');
     } catch (e) {
@@ -136,6 +185,11 @@ function formatDate(d) {
 
             <!-- ── VIEW MODE ────────────────────────────────────────── -->
             <div v-if="!editMode" class="space-y-5">
+
+                <!-- Equipment Image -->
+                <div v-if="equipment.image_url" class="w-full rounded-2xl overflow-hidden border border-slate-100 bg-slate-50">
+                    <img :src="equipment.image_url" :alt="equipment.name_th" class="w-full max-h-56 object-contain" />
+                </div>
 
                 <!-- ID Code banner -->
                 <div class="flex flex-col sm:flex-row sm:items-center gap-3 p-4 rounded-2xl bg-blue-50 border border-blue-100">
@@ -314,6 +368,48 @@ function formatDate(d) {
                         class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm focus:border-blue-500 outline-none resize-none"
                         placeholder="บันทึกเพิ่มเติม..."
                     ></textarea>
+                </div>
+
+                <!-- Image upload -->
+                <div class="border border-slate-100 rounded-2xl p-4 space-y-3">
+                    <div class="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
+                        <PhotoIcon class="w-4 h-4 text-amber-500" /> รูปภาพเครื่องมือ
+                    </div>
+
+                    <!-- Current image or new preview -->
+                    <div v-if="imagePreview || (equipment.image_url && !removeImageFlag)" class="relative w-full">
+                        <img :src="imagePreview || equipment.image_url"
+                            class="w-full max-h-40 object-contain rounded-xl border border-slate-100 bg-slate-50" />
+                        <button type="button" @click="imagePreview ? clearNewImage() : flagRemoveImage()"
+                            class="absolute top-2 right-2 w-6 h-6 rounded-full bg-rose-500 text-white flex items-center justify-center hover:bg-rose-600 shadow">
+                            <XMarkIcon class="w-3.5 h-3.5" />
+                        </button>
+                    </div>
+
+                    <!-- No image state -->
+                    <div v-else class="flex items-center gap-2 text-xs text-slate-400 bg-slate-50 rounded-xl p-3">
+                        <PhotoIcon class="w-4 h-4" />
+                        <span>{{ removeImageFlag ? 'จะลบรูปภาพเมื่อบันทึก' : 'ยังไม่มีรูปภาพ' }}</span>
+                    </div>
+
+                    <!-- Buttons -->
+                    <div class="flex gap-2">
+                        <button type="button" @click="imageInput.click()"
+                            class="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600 transition">
+                            <PhotoIcon class="w-4 h-4" /> แนบรูป
+                        </button>
+                        <button type="button" @click="cameraInput.click()"
+                            class="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-600 hover:bg-emerald-50 hover:border-emerald-300 hover:text-emerald-600 transition">
+                            <CameraIcon class="w-4 h-4" /> ถ่ายรูป
+                        </button>
+                        <button v-if="equipment.image_url && !removeImageFlag && !imagePreview"
+                            type="button" @click="flagRemoveImage"
+                            class="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-rose-200 text-xs text-rose-500 hover:bg-rose-50 transition">
+                            <TrashIcon class="w-4 h-4" /> ลบรูป
+                        </button>
+                    </div>
+                    <input ref="imageInput" type="file" accept="image/*" class="hidden" @change="onImageSelected" />
+                    <input ref="cameraInput" type="file" accept="image/*" capture="environment" class="hidden" @change="onImageSelected" />
                 </div>
             </form>
         </template>

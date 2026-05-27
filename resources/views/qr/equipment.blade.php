@@ -4,6 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{{ $equipment->id_code }} — {{ $equipment->name_th }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root { --blue: #2563eb; --slate-50: #f8fafc; --slate-100: #f1f5f9; --slate-300: #cbd5e1; --slate-500: #64748b; --slate-700: #334155; --slate-800: #1e293b; }
         * { box-sizing: border-box; -webkit-font-smoothing: antialiased; }
@@ -58,6 +61,14 @@
         .field-label { font-size: 11px; color: var(--slate-500); }
         .field-value { font-size: 13px; color: var(--slate-700); font-weight: 500; }
         .footer { text-align: center; font-size: 11px; color: var(--slate-500); margin-top: 16px; }
+        .equipment-image {
+            width: 100%; max-height: 200px;
+            object-fit: contain;
+            border-radius: 12px;
+            border: 1px solid var(--slate-100);
+            background: var(--slate-50);
+            margin-bottom: 12px;
+        }
     </style>
 </head>
 <body>
@@ -68,6 +79,10 @@
                 <h1>CK-MEMS</h1>
                 <div class="subtitle">{{ $equipment->hospital->name_th ?? '' }}</div>
             </div>
+
+            @if ($equipment->image_url)
+                <img src="{{ $equipment->image_url }}" alt="{{ $equipment->name_th }}" class="equipment-image" />
+            @endif
 
             <div class="id_code">{{ $equipment->id_code }}</div>
             <div class="name_th">{{ $equipment->name_th }}</div>

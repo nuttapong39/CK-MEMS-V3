@@ -8,4 +8,12 @@ export const equipmentsApi = {
     destroy: (id) => client.delete(`/equipments/${id}`),
     previewIdCode: (department_id, equipment_code_id) =>
         client.get('/equipments/preview-id-code', { params: { department_id, equipment_code_id } }),
+    uploadImage: (id, file) => {
+        const fd = new FormData();
+        fd.append('image', file);
+        return client.post(`/equipments/${id}/image`, fd, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+    },
+    removeImage: (id) => client.delete(`/equipments/${id}/image`),
 };
