@@ -1,0 +1,76 @@
+name: Deploy to Hosting-Lotus
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Setup Node & build Vue/Vite
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build
+
+      # 3. Upload Laravel app (PHP files, migrations, views, etc.)
+      - name: Deploy Laravel to server
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          port: 21
+          local-dir: ./
+          server-dir: /domains/ck-mems.ckhospital.net/laravel/
+          exclude: |
+            **/.git*
+            **/.git/**
+            **/node_modules/**
+            **/vendor/**
+            **/.env
+            **/storage/logs/**
+            **/storage/framework/cache/**
+            **/public/build/**
+            laravel.zip
+            uat.env
+
+      # 4. Upload built assets (public/build/) → public_html/build/
+      - name: Deploy build assets to public_html
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          port: 21
+          local-dir: ./public/build/
+          server-dir: /domains/ck-mems.ckhospital.net/public_html/build/
+
+      # 5. Upload built assets → laravel/public/build/
+      - name: Deploy build assets to laravel/public
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASS }}
+          port: 21
+          local-dir: ./public/build/
+          server-dir: /domains/ck-mems.ckhospital.net/laravel/public/build/
+
+      # 6. Trigger artisan (migrate + cache) via HTTP
+      - name: Run Artisan (migrate + cache)
+        run: |
+          curl -s "https://ck-mems.ckhospital.net/artisan_run.php?token=${{ secrets.DEPLOY_TOKEN }}" | tail -20
+        continue-on-error: true
