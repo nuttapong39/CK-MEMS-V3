@@ -484,7 +484,7 @@ async function cancelTicket() {
                             <div class="flex items-start gap-2">
                                 <UserCircleIcon class="w-4 h-4 mt-0.5 text-slate-400" />
                                 <div>
-                                    <div class="font-medium text-sm">{{ ticket.reporter?.full_name }}</div>
+                                    <div class="font-medium text-sm">{{ ticket.reporter?.full_name ?? (ticket.reporter_name ? ticket.reporter_name + ' (QR)' : '—') }}</div>
                                     <div class="text-xs text-slate-500">{{ ticket.reporter?.department }}</div>
                                 </div>
                             </div>
@@ -592,7 +592,7 @@ async function cancelTicket() {
                                 </div>
                                 <div>
                                     <div class="text-[11px] text-slate-400">ผู้แจ้ง / หน่วยงาน</div>
-                                    <div>{{ ticket.reporter?.full_name }}</div>
+                                    <div>{{ ticket.reporter?.full_name ?? (ticket.reporter_name ? ticket.reporter_name + ' (QR)' : '—') }}</div>
                                     <div class="text-xs text-slate-500">{{ ticket.reporter?.department }}</div>
                                 </div>
                                 <div>

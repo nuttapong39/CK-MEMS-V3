@@ -210,7 +210,7 @@ function fmtDate(val) {
                     <div class="space-y-2.5">
                         <div>
                             <div class="text-[10px] uppercase text-slate-400">ผู้แจ้ง</div>
-                            <div class="text-sm">{{ ticket.reporter?.full_name }}</div>
+                            <div class="text-sm">{{ ticket.reporter?.full_name ?? (ticket.reporter_name ? ticket.reporter_name + ' (แจ้งผ่าน QR)' : '—') }}</div>
                         </div>
                         <div>
                             <div class="text-[10px] uppercase text-slate-400">ความเร่งด่วน</div>

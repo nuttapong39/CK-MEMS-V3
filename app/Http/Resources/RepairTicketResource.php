@@ -50,6 +50,7 @@ class RepairTicketResource extends JsonResource
                 'id' => $this->location->id,
                 'name' => $this->location->name,
             ] : null),
+            'reporter_name' => $this->reporter_name,
             'reporter' => $this->whenLoaded('reporter', fn () => $this->reporter ? [
                 'id' => $this->reporter->id,
                 'full_name' => $this->reporter->full_name ?? $this->reporter->name,

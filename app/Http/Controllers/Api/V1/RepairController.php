@@ -191,6 +191,29 @@ class RepairController extends Controller
         return new RepairTicketResource($updated);
     }
 
+    public function destroy(RepairTicket $ticket, Request $request): JsonResponse
+    {
+        abort_if($ticket->hospital_id !== $request->user()->hospital_id, 404);
+
+        // Permanently remove the ticket (progress logs cascade via FK).
+        // Used by staff/admin to clean up duplicate / test / wrong reports.
+        $equipment = $ticket->equipment;
+        $ticket->delete();
+
+        // If the equipment was marked UNDER_REPAIR only because of this ticket,
+        // release it back to ACTIVE when no other open tickets remain.
+        if ($equipment && $equipment->status === Equipment::STATUS_UNDER_REPAIR) {
+            $hasOpen = RepairTicket::where('equipment_id', $equipment->id)
+                ->whereIn('status', RepairWorkflowService::ACTIVE_STATUSES)
+                ->exists();
+            if (! $hasOpen) {
+                $equipment->update(['status' => Equipment::STATUS_ACTIVE]);
+            }
+        }
+
+        return response()->json(['message' => 'ลบงานซ่อมเรียบร้อย']);
+    }
+
     public function nextOutsourceRef(Request $request): JsonResponse
     {
         $ref = $this->workflow->generateOutsourceRef($request->user()->hospital_id);
@@ -205,11 +228,17 @@ class RepairController extends Controller
             ->groupBy('status')
             ->pluck('cnt', 'status');
 
+        $total = RepairTicket::where('hospital_id', $hospitalId)->count();
+        $closed = (int) ($byStatus->get(RepairTicket::STATUS_CLOSED) ?? 0);
+        $cancelled = (int) ($byStatus->get(RepairTicket::STATUS_CANCELLED) ?? 0);
+
         return response()->json([
-            'total' => RepairTicket::where('hospital_id', $hospitalId)->count(),
+            'total' => $total,
             'by_status' => $byStatus,
             'open' => collect(RepairWorkflowService::ACTIVE_STATUSES)
                 ->sum(fn ($s) => (int) ($byStatus->get($s) ?? 0)),
+            // งานที่ยังไม่จบ = ทุกสถานะยกเว้น ปิดงาน (CLOSED) และ ยกเลิก (CANCELLED)
+            'unfinished' => max(0, $total - $closed - $cancelled),
         ]);
     }
 }

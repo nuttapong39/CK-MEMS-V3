@@ -65,6 +65,7 @@ Route::prefix('v1')->group(function () {
             Route::post('/', [RepairController::class, 'store']);
             Route::get('{ticket}', [RepairController::class, 'show']);
             Route::post('{ticket}/transition', [RepairController::class, 'transition'])->middleware('role:admin|staff');
+            Route::delete('{ticket}', [RepairController::class, 'destroy'])->middleware('role:admin|staff');
         });
 
         // Calibrations

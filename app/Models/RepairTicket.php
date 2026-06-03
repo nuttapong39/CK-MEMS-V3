@@ -25,7 +25,7 @@ class RepairTicket extends Model
 
     protected $fillable = [
         'hospital_id', 'ticket_no', 'equipment_id', 'location_id',
-        'reported_at', 'reported_by', 'symptom', 'urgency', 'status',
+        'reported_at', 'reported_by', 'reporter_name', 'symptom', 'urgency', 'status',
         'sla_due_at',
         'assigned_to', 'acknowledged_at', 'started_at', 'completed_at', 'closed_at',
         'root_cause', 'action_taken', 'parts_used', 'repair_cost',

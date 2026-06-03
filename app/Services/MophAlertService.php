@@ -298,7 +298,7 @@ class MophAlertService
                 'status'          => $ticket->status,
                 'status_label'    => $statusLabel,
                 'reported_at'     => $ticket->reported_at?->format('d/m/Y H:i') ?? '',
-                'reporter_name'   => $ticket->reporter?->full_name ?? $ticket->reporter?->name ?? '',
+                'reporter_name'   => $ticket->reporter?->full_name ?? $ticket->reporter?->name ?? $ticket->reporter_name ?? '',
                 'assignee_name'   => $ticket->assignee?->full_name ?? $ticket->assignee?->name ?? '-',
                 // Progress fields
                 'root_cause'      => $ticket->root_cause ?? '-',

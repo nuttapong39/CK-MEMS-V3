@@ -243,7 +243,7 @@ function fmtDate(d) {
                             </div>
                             <div>
                                 <label class="block text-xs font-semibold text-slate-500 mb-1">ผู้แจ้งซ่อม</label>
-                                <p class="text-slate-700">{{ modal.ticket.reporter?.full_name ?? modal.ticket.reporter?.name ?? '-' }}</p>
+                                <p class="text-slate-700">{{ modal.ticket.reporter?.full_name ?? modal.ticket.reporter?.name ?? modal.ticket.reporter_name ?? '-' }}</p>
                             </div>
                             <div class="col-span-2">
                                 <label class="block text-xs font-semibold text-slate-500 mb-1">อาการเสีย / ปัญหาที่พบ</label>

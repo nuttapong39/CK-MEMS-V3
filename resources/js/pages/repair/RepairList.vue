@@ -1,17 +1,46 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue';
-import { RouterLink } from 'vue-router';
+import { RouterLink, useRoute } from 'vue-router';
 import {
     PlusIcon, MagnifyingGlassIcon, ChevronLeftIcon, ChevronRightIcon,
-    EyeIcon, ArrowDownTrayIcon, Cog8ToothIcon,
+    EyeIcon, ArrowDownTrayIcon, Cog8ToothIcon, TrashIcon, ShieldExclamationIcon,
 } from '@heroicons/vue/24/outline';
+import Swal from 'sweetalert2';
 import { repairsApi } from '../../api/repairs';
 import { useAuthStore } from '../../stores/auth';
 import StatusBadge from '../../components/repair/StatusBadge.vue';
 import { URGENCY_META } from '../../composables/repairStatus';
 
 const auth = useAuthStore();
+const route = useRoute();
 const canManage = computed(() => auth.hasAnyRole(['admin', 'staff']));
+
+/* Manage mode — เข้าผ่านปุ่ม "งานซ่อมทั้งหมด" (/repair?manage=1) เท่านั้น
+   เปิดให้ staff/admin ลบงานซ่อมได้ทุกสถานะ (กรณีแจ้งซ้ำ/ทดสอบ/แจ้งผิด) */
+const manageMode = computed(() => canManage.value && route.query.manage === '1');
+
+async function deleteTicket(t) {
+    const res = await Swal.fire({
+        icon: 'warning',
+        title: 'ลบงานซ่อมนี้?',
+        html: `หมายเลข <b>${t.ticket_no}</b><br>${t.equipment?.id_code ?? ''} ${t.equipment?.name_th ?? ''}<br><span style="color:#dc2626">การลบนี้ถาวร ไม่สามารถกู้คืนได้</span>`,
+        showCancelButton: true,
+        confirmButtonText: 'ลบถาวร',
+        cancelButtonText: 'ยกเลิก',
+        confirmButtonColor: '#dc2626',
+        cancelButtonColor: '#64748b',
+    });
+    if (!res.isConfirmed) return;
+    try {
+        await repairsApi.destroy(t.id);
+        await Swal.fire({ icon: 'success', title: 'ลบเรียบร้อย', timer: 1200, showConfirmButton: false });
+        // ถ้าลบรายการสุดท้ายของหน้า ให้ถอยหน้า
+        if (items.value.length === 1 && filters.page > 1) filters.page--;
+        else load();
+    } catch (e) {
+        Swal.fire({ icon: 'error', title: 'ลบไม่สำเร็จ', text: e.response?.data?.message || '' });
+    }
+}
 const loading = ref(false);
 const items = ref([]);
 const meta = ref({ current_page: 1, last_page: 1, total: 0, per_page: 25 });
@@ -72,7 +101,7 @@ function exportCsv() {
         (t.symptom || '').replace(/[\r\n]+/g, ' '),
         t.urgency,
         t.status,
-        t.reporter?.full_name ?? '',
+        t.reporter?.full_name ?? t.reporter_name ?? '',
     ]);
     const csv = [headers, ...rows]
         .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
@@ -107,6 +136,15 @@ function exportCsv() {
                     <PlusIcon class="w-5 h-5" />
                     แจ้งซ่อม
                 </RouterLink>
+            </div>
+        </div>
+
+        <!-- Manage mode banner -->
+        <div v-if="manageMode" class="flex items-center gap-2.5 px-4 py-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700">
+            <ShieldExclamationIcon class="w-5 h-5 shrink-0" />
+            <div class="text-sm">
+                <b>โหมดจัดการงานซ่อม</b> — สามารถลบงานซ่อมได้ทุกสถานะ (สำหรับกรณีแจ้งซ้ำ / ทดสอบระบบ / แจ้งผิด)
+                <span class="text-rose-500">การลบเป็นการลบถาวร</span>
             </div>
         </div>
 
@@ -192,7 +230,9 @@ function exportCsv() {
                                 </span>
                             </td>
                             <td class="px-5 py-3"><StatusBadge :status="t.status" /></td>
-                            <td class="px-5 py-3 text-xs text-slate-600">{{ t.reporter?.full_name }}</td>
+                            <td class="px-5 py-3 text-xs text-slate-600">
+                                {{ t.reporter?.full_name ?? (t.reporter_name ? t.reporter_name + ' (QR)' : '—') }}
+                            </td>
                             <td class="px-5 py-3 text-right">
                                 <div class="inline-flex items-center gap-1">
                                     <!-- จัดการซ่อม: admin/staff + ticket ยังไม่ปิด -->
@@ -208,6 +248,15 @@ function exportCsv() {
                                     <RouterLink :to="{ name: 'repair.detail', params: { id: t.id } }" class="inline-flex p-1.5 rounded-lg hover:bg-slate-100 text-slate-500" title="ดูรายละเอียด">
                                         <EyeIcon class="w-4 h-4" />
                                     </RouterLink>
+                                    <!-- ลบงานซ่อม: เฉพาะ manage mode (staff/admin) ลบได้ทุกสถานะ -->
+                                    <button
+                                        v-if="manageMode"
+                                        @click="deleteTicket(t)"
+                                        class="inline-flex p-1.5 rounded-lg hover:bg-rose-100 text-rose-500"
+                                        title="ลบงานซ่อม"
+                                    >
+                                        <TrashIcon class="w-4 h-4" />
+                                    </button>
                                 </div>
                             </td>
                         </tr>
