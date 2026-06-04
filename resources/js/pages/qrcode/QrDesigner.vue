@@ -298,12 +298,13 @@ watch(previewItems, async (newItems) => {
 function buildDualLabelHtml(it, repairQr, detailQr, qMm) {
     const px  = 3.78;
     const qPx = qMm * px;
-    // line-height กว้างพอสำหรับสระ/วรรณยุกต์ไทย + จำกัด 2 บรรทัด (ไม่ตัดครึ่งตัวอักษร)
+    // กล่องชื่อความสูงคงที่ = 2 บรรทัด (34px) + line-height 1.7 → ไทยไม่ถูกตัด
+    // (เลี่ยง -webkit-line-clamp เพราะ html2canvas คำนวณความสูงผิด)
     return `
         <div style="font-family:'Sarabun','IBM Plex Sans Thai','Noto Sans Thai',sans-serif;padding:10px 8px 9px;background:#fff;border:1px dashed #94a3b8;border-radius:6px;box-sizing:border-box;">
-            <div style="text-align:center;margin-bottom:7px;">
-                <div style="font-family:'Courier New',monospace;font-weight:bold;font-size:13px;line-height:1.5;color:#1d4ed8;">${it.id_code}</div>
-                <div style="font-size:10px;line-height:1.5;color:#334155;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;overflow-wrap:anywhere;">${it.name_th || ''}</div>
+            <div style="text-align:center;margin-bottom:8px;">
+                <div style="font-family:'Courier New',monospace;font-weight:bold;font-size:13px;line-height:1.6;color:#1d4ed8;">${it.id_code}</div>
+                <div style="font-size:10px;line-height:1.7;height:34px;overflow:hidden;color:#334155;text-align:center;white-space:normal;word-break:break-word;overflow-wrap:break-word;">${it.name_th || ''}</div>
             </div>
             <div style="display:flex;justify-content:center;align-items:flex-start;gap:${5 * px}px;">
                 <div style="text-align:center;">
