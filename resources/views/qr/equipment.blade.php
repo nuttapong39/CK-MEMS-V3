@@ -104,31 +104,51 @@
                 <span class="badge {{ $cls }}">{{ $label }}</span>
             </div>
 
+            @php
+                $calibrationLabels = [
+                    'NONE'     => 'ไม่ต้องสอบเทียบ',
+                    'INTERNAL' => 'ภายใน',
+                    'EXTERNAL' => 'ภายนอก',
+                    'BOTH'     => 'ทั้งภายในและภายนอก',
+                ];
+                $thMonths = [1=>'ม.ค.',2=>'ก.พ.',3=>'มี.ค.',4=>'เม.ย.',5=>'พ.ค.',6=>'มิ.ย.',7=>'ก.ค.',8=>'ส.ค.',9=>'ก.ย.',10=>'ต.ค.',11=>'พ.ย.',12=>'ธ.ค.'];
+                $fmtThai = fn ($d) => $d ? ($d->day.' '.$thMonths[$d->month].' '.($d->year + 543)) : '—';
+            @endphp
+
             <div class="field-grid">
-                @if ($equipment->department)
-                    <div class="field-label">หน่วยงาน</div>
-                    <div class="field-value">{{ $equipment->department->code }} — {{ $equipment->department->name_th }}</div>
-                @endif
-                @if ($equipment->manufacturer)
-                    <div class="field-label">ยี่ห้อ</div>
-                    <div class="field-value">{{ $equipment->manufacturer }}</div>
-                @endif
-                @if ($equipment->model)
-                    <div class="field-label">รุ่น</div>
-                    <div class="field-value">{{ $equipment->model }}</div>
-                @endif
-                @if ($equipment->serial_number)
-                    <div class="field-label">Serial</div>
-                    <div class="field-value">{{ $equipment->serial_number }}</div>
-                @endif
-                @if ($equipment->fiscal_year)
-                    <div class="field-label">ปีงบประมาณ</div>
-                    <div class="field-value">{{ $equipment->fiscal_year }}</div>
-                @endif
+                <div class="field-label">หน่วยงาน</div>
+                <div class="field-value">
+                    {{ $equipment->department?->name_th ?? '—' }}@if ($equipment->department?->code) <span style="color:#94a3b8">({{ $equipment->department->code }})</span>@endif
+                </div>
+
+                <div class="field-label">ยี่ห้อ</div>
+                <div class="field-value">{{ $equipment->manufacturer ?: '—' }}</div>
+
+                <div class="field-label">รุ่น</div>
+                <div class="field-value">{{ $equipment->model ?: '—' }}</div>
+
+                <div class="field-label">Serial Number</div>
+                <div class="field-value">{{ $equipment->serial_number ?: '—' }}</div>
+
+                <div class="field-label">หมายเลขครุภัณฑ์</div>
+                <div class="field-value">{{ $equipment->asset_number ?: '—' }}</div>
+
+                <div class="field-label">ปีงบประมาณ</div>
+                <div class="field-value">{{ $equipment->fiscal_year ? 'พ.ศ. '.$equipment->fiscal_year : '—' }}</div>
+
+                <div class="field-label">สอบเทียบโดย</div>
+                <div class="field-value">{{ $calibrationLabels[$equipment->calibration_by] ?? ($equipment->calibration_by ?: '—') }}</div>
+
+                <div class="field-label">รอบซ่อมบำรุง/ปี</div>
+                <div class="field-value">{{ $equipment->maintenance_cycles_per_year !== null ? $equipment->maintenance_cycles_per_year.' ครั้ง/ปี' : '—' }}</div>
+
+                <div class="field-label">วันที่ซื้อ</div>
+                <div class="field-value">{{ $fmtThai($equipment->purchase_date) }}</div>
+
                 @if ($equipment->latestCalibration)
                     <div class="field-label">สอบเทียบล่าสุด</div>
                     <div class="field-value">
-                        {{ $equipment->latestCalibration->calibrated_at?->format('d/m/Y') }}
+                        {{ $fmtThai($equipment->latestCalibration->calibrated_at) }}
                         @if ($equipment->latestCalibration->result === 'PASS')
                             <span style="color:#059669">· ผ่าน</span>
                         @else
@@ -137,9 +157,10 @@
                     </div>
                     @if ($equipment->latestCalibration->next_due_at)
                         <div class="field-label">ครบกำหนดสอบเทียบ</div>
-                        <div class="field-value">{{ $equipment->latestCalibration->next_due_at?->format('d/m/Y') }}</div>
+                        <div class="field-value">{{ $fmtThai($equipment->latestCalibration->next_due_at) }}</div>
                     @endif
                 @endif
+
                 @if ($equipment->note)
                     <div class="field-label">หมายเหตุ</div>
                     <div class="field-value">{{ $equipment->note }}</div>
