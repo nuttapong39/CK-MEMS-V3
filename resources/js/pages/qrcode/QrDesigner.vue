@@ -266,6 +266,118 @@ const pageRange = computed(() => {
     return arr;
 });
 
+/* ─────────────────────────────────────────────
+   TAB 4 — DUAL QR (แจ้งซ่อม + รายละเอียด ในใบเดียว)
+───────────────────────────────────────────── */
+const dualLayout = reactive({ paper_size: 'a4', qr_size_mm: 24 });
+const dualGenerating = ref(false);
+
+/* Repair-URL QR cache (separate from the detail-URL cache) */
+const qrRepairCache = reactive({});
+async function getQrRepairDataUrl(idCode, size = 200) {
+    const key = `${idCode}_${size}`;
+    if (qrRepairCache[key]) return qrRepairCache[key];
+    const dataUrl = await QRCode.toDataURL(repairUrl(idCode), {
+        width: size, margin: 1,
+        color: { dark: '#000000', light: '#ffffff' },
+        errorCorrectionLevel: 'H',
+    });
+    qrRepairCache[key] = dataUrl;
+    return dataUrl;
+}
+
+/* Preview: ensure both detail + repair QRs are ready for selected items */
+const qrRepairDataUrls = reactive({});
+watch(previewItems, async (newItems) => {
+    for (const it of newItems) {
+        if (!qrDataUrls[it.id])       qrDataUrls[it.id]       = await getQrDataUrl(it.id_code, 240);
+        if (!qrRepairDataUrls[it.id]) qrRepairDataUrls[it.id] = await getQrRepairDataUrl(it.id_code, 240);
+    }
+}, { immediate: true });
+
+function buildDualLabelHtml(it, repairQr, detailQr, qMm) {
+    const px  = 3.78;
+    const qPx = qMm * px;
+    return `
+        <div style="font-family:sans-serif;padding:8px;background:#fff;border:1px dashed #94a3b8;border-radius:6px;box-sizing:border-box;">
+            <div style="text-align:center;margin-bottom:5px;">
+                <div style="font-family:monospace;font-weight:bold;font-size:12px;color:#1d4ed8;">${it.id_code}</div>
+                <div style="font-size:9px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.name_th || ''}</div>
+            </div>
+            <div style="display:flex;justify-content:center;gap:${5 * px}px;">
+                <div style="text-align:center;">
+                    <img src="${repairQr}" width="${qPx}" height="${qPx}" style="display:block;" />
+                    <div style="font-size:8px;font-weight:bold;color:#e11d48;margin-top:3px;">🔧 แจ้งซ่อม</div>
+                </div>
+                <div style="text-align:center;">
+                    <img src="${detailQr}" width="${qPx}" height="${qPx}" style="display:block;" />
+                    <div style="font-size:8px;font-weight:bold;color:#1d4ed8;margin-top:3px;">📋 รายละเอียด</div>
+                </div>
+            </div>
+        </div>`;
+}
+
+async function generateDualPdf() {
+    if (selected.value.size === 0) {
+        Swal.fire({ icon: 'warning', title: 'เลือกเครื่องมืออย่างน้อย 1 รายการ' });
+        return;
+    }
+    dualGenerating.value = true;
+
+    const container = document.createElement('div');
+    container.style.cssText = 'position:fixed;left:-9999px;top:0;z-index:-1;pointer-events:none;';
+    document.body.appendChild(container);
+
+    try {
+        const paperMap = { a4: [210, 297], a5: [148, 210], letter: [215.9, 279.4], legal: [215.9, 355.6] };
+        const [pw, ph]  = paperMap[dualLayout.paper_size] ?? [210, 297];
+        const pdf       = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pw, ph] });
+
+        const margin = 8;
+        const gap    = 4;
+        const px     = 3.78;
+        const qMm    = dualLayout.qr_size_mm;
+        const labelW = qMm * 2 + 18;            // 2 QR + ช่องว่าง + padding
+        const cols   = Math.max(1, Math.floor((pw - margin * 2 + gap) / (labelW + gap)));
+
+        let col = 0, row = 0, firstPage = true, labelH = null;
+
+        for (const it of printItems.value) {
+            const rQr = await getQrRepairDataUrl(it.id_code, 420);
+            const dQr = await getQrDataUrl(it.id_code, 420);
+
+            const wrapper = document.createElement('div');
+            wrapper.style.cssText = `width:${labelW * px}px;`;
+            wrapper.innerHTML = buildDualLabelHtml(it, rQr, dQr, qMm);
+            container.appendChild(wrapper);
+
+            const canvas = await html2canvas(wrapper, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+            if (labelH === null) labelH = labelW * (canvas.height / canvas.width); // keep aspect → no stretch
+
+            if (!firstPage && (margin + row * (labelH + gap)) + labelH > ph - margin) {
+                pdf.addPage(); col = 0; row = 0;
+            }
+            firstPage = false;
+
+            const fcx = margin + col * (labelW + gap);
+            const fcy = margin + row * (labelH + gap);
+            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', fcx, fcy, labelW, labelH);
+            container.removeChild(wrapper);
+
+            col++;
+            if (col >= cols) { col = 0; row++; }
+        }
+
+        pdf.save(`qr_dual_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+        console.error(e);
+        Swal.fire({ icon: 'error', title: 'สร้าง PDF ไม่สำเร็จ', text: String(e) });
+    } finally {
+        document.body.removeChild(container);
+        dualGenerating.value = false;
+    }
+}
+
 </script>
 
 <template>
@@ -293,6 +405,10 @@ const pageRange = computed(() => {
                 :class="['px-4 py-2 rounded-lg text-sm font-medium transition', activeTab === 'print' ? 'bg-white text-blue-600 shadow' : 'text-slate-600 hover:text-slate-800']">
                 <span class="flex items-center gap-2"><PrinterIcon class="w-4 h-4" /> พิมพ์ QR Code</span>
             </button>
+            <button @click="activeTab = 'dual'"
+                :class="['px-4 py-2 rounded-lg text-sm font-medium transition', activeTab === 'dual' ? 'bg-white text-emerald-600 shadow' : 'text-slate-600 hover:text-slate-800']">
+                <span class="flex items-center gap-2"><Squares2X2Icon class="w-4 h-4" /> QR คู่ (แจ้งซ่อม + รายละเอียด)</span>
+            </button>
             <button @click="activeTab = 'design'"
                 :class="['px-4 py-2 rounded-lg text-sm font-medium transition', activeTab === 'design' ? 'bg-white text-violet-600 shadow' : 'text-slate-600 hover:text-slate-800']">
                 <span class="flex items-center gap-2"><PaintBrushIcon class="w-4 h-4" /> ออกแบบป้าย (Drag &amp; Drop)</span>
@@ -304,9 +420,10 @@ const pageRange = computed(() => {
         </div>
 
         <!-- ═══════════════════════════════
-             TAB 1: PRINT QR
+             TAB 1: PRINT QR  /  TAB 4: DUAL QR
+             (ใช้รายการเครื่องมือ + การเลือกร่วมกัน สลับเฉพาะแผงขวา)
         ════════════════════════════════ -->
-        <div v-if="activeTab === 'print'" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <div v-if="activeTab === 'print' || activeTab === 'dual'" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
 
             <!-- Equipment List -->
             <div class="lg:col-span-7 space-y-3">
@@ -359,6 +476,9 @@ const pageRange = computed(() => {
 
             <!-- Settings + Preview -->
             <div class="lg:col-span-5 space-y-3">
+
+              <!-- ───── PRINT (single QR) panel ───── -->
+              <template v-if="activeTab === 'print'">
                 <!-- Settings -->
                 <div class="card-base p-5 space-y-4">
                     <div class="flex items-center justify-between">
@@ -427,6 +547,74 @@ const pageRange = computed(() => {
                         </div>
                     </div>
                 </div>
+              </template>
+
+              <!-- ───── DUAL QR (แจ้งซ่อม + รายละเอียด) panel ───── -->
+              <template v-else-if="activeTab === 'dual'">
+                <!-- Settings -->
+                <div class="card-base p-5 space-y-4">
+                    <div class="text-sm font-semibold text-slate-800">การตั้งค่า QR คู่</div>
+                    <div class="flex items-start gap-2 text-xs text-slate-500 bg-slate-50 rounded-lg p-2.5">
+                        <Squares2X2Icon class="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                        <span>แต่ละใบมี 2 QR — <b class="text-rose-600">ซ้าย = แจ้งซ่อม</b> · <b class="text-blue-600">ขวา = รายละเอียด</b></span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-1">ขนาดกระดาษ</label>
+                            <select v-model="dualLayout.paper_size" class="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white">
+                                <option value="a4">A4 (210×297)</option>
+                                <option value="a5">A5 (148×210)</option>
+                                <option value="letter">Letter</option>
+                                <option value="legal">Legal</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-500 block mb-1">ขนาดต่อ QR: <span class="font-bold text-emerald-600">{{ dualLayout.qr_size_mm }} mm</span></label>
+                            <input v-model.number="dualLayout.qr_size_mm" type="range" min="18" max="40" step="1" class="w-full accent-emerald-600" />
+                        </div>
+                    </div>
+                    <div class="pt-2 border-t border-slate-100">
+                        <button @click="generateDualPdf" :disabled="selected.size === 0 || dualGenerating"
+                            class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 text-white text-sm font-semibold shadow disabled:opacity-50 transition">
+                            <svg v-if="dualGenerating" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                            <PrinterIcon v-else class="w-4 h-4" />
+                            {{ dualGenerating ? 'กำลังสร้าง...' : 'สร้าง PDF (QR คู่)' }}
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview -->
+                <div class="card-base p-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <Squares2X2Icon class="w-4 h-4 text-emerald-500" />
+                        <div class="text-sm font-semibold text-slate-800">Preview ({{ Math.min(selected.size, 6) }} ตัวอย่าง)</div>
+                    </div>
+                    <div v-if="!previewItems.length" class="py-10 text-center text-slate-400 text-sm">เลือกเครื่องมือก่อน</div>
+                    <div v-else class="grid grid-cols-1 gap-2">
+                        <div v-for="it in previewItems" :key="it.id"
+                            class="border border-dashed border-slate-300 rounded-xl p-2.5 bg-white">
+                            <div class="text-center mb-1.5">
+                                <div class="font-mono text-[11px] font-bold text-blue-700">{{ it.id_code }}</div>
+                                <div class="text-[10px] text-slate-600 truncate">{{ it.name_th }}</div>
+                            </div>
+                            <div class="flex items-start justify-center gap-3">
+                                <div class="text-center">
+                                    <img v-if="qrRepairDataUrls[it.id]" :src="qrRepairDataUrls[it.id]" class="block mx-auto"
+                                        :style="{ width: dualLayout.qr_size_mm * 2 + 'px', height: dualLayout.qr_size_mm * 2 + 'px' }" />
+                                    <div v-else class="bg-slate-100 rounded mx-auto" :style="{ width: dualLayout.qr_size_mm * 2 + 'px', height: dualLayout.qr_size_mm * 2 + 'px' }"></div>
+                                    <div class="text-[9px] font-bold text-rose-600 mt-1">🔧 แจ้งซ่อม</div>
+                                </div>
+                                <div class="text-center">
+                                    <img v-if="qrDataUrls[it.id]" :src="qrDataUrls[it.id]" class="block mx-auto"
+                                        :style="{ width: dualLayout.qr_size_mm * 2 + 'px', height: dualLayout.qr_size_mm * 2 + 'px' }" />
+                                    <div v-else class="bg-slate-100 rounded mx-auto" :style="{ width: dualLayout.qr_size_mm * 2 + 'px', height: dualLayout.qr_size_mm * 2 + 'px' }"></div>
+                                    <div class="text-[9px] font-bold text-blue-600 mt-1">📋 รายละเอียด</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+              </template>
             </div>
         </div>
 
