@@ -298,20 +298,21 @@ watch(previewItems, async (newItems) => {
 function buildDualLabelHtml(it, repairQr, detailQr, qMm) {
     const px  = 3.78;
     const qPx = qMm * px;
+    // line-height กว้างพอสำหรับสระ/วรรณยุกต์ไทย + จำกัด 2 บรรทัด (ไม่ตัดครึ่งตัวอักษร)
     return `
-        <div style="font-family:sans-serif;padding:8px;background:#fff;border:1px dashed #94a3b8;border-radius:6px;box-sizing:border-box;">
-            <div style="text-align:center;margin-bottom:5px;">
-                <div style="font-family:monospace;font-weight:bold;font-size:12px;color:#1d4ed8;">${it.id_code}</div>
-                <div style="font-size:9px;color:#334155;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${it.name_th || ''}</div>
+        <div style="font-family:'Sarabun','IBM Plex Sans Thai','Noto Sans Thai',sans-serif;padding:10px 8px 9px;background:#fff;border:1px dashed #94a3b8;border-radius:6px;box-sizing:border-box;">
+            <div style="text-align:center;margin-bottom:7px;">
+                <div style="font-family:'Courier New',monospace;font-weight:bold;font-size:13px;line-height:1.5;color:#1d4ed8;">${it.id_code}</div>
+                <div style="font-size:10px;line-height:1.5;color:#334155;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;overflow-wrap:anywhere;">${it.name_th || ''}</div>
             </div>
-            <div style="display:flex;justify-content:center;gap:${5 * px}px;">
+            <div style="display:flex;justify-content:center;align-items:flex-start;gap:${5 * px}px;">
                 <div style="text-align:center;">
                     <img src="${repairQr}" width="${qPx}" height="${qPx}" style="display:block;" />
-                    <div style="font-size:8px;font-weight:bold;color:#e11d48;margin-top:3px;">🔧 แจ้งซ่อม</div>
+                    <div style="font-size:9px;font-weight:bold;line-height:1.7;color:#e11d48;margin-top:4px;">🔧 แจ้งซ่อม</div>
                 </div>
                 <div style="text-align:center;">
                     <img src="${detailQr}" width="${qPx}" height="${qPx}" style="display:block;" />
-                    <div style="font-size:8px;font-weight:bold;color:#1d4ed8;margin-top:3px;">📋 รายละเอียด</div>
+                    <div style="font-size:9px;font-weight:bold;line-height:1.7;color:#1d4ed8;margin-top:4px;">📋 รายละเอียด</div>
                 </div>
             </div>
         </div>`;
@@ -338,32 +339,34 @@ async function generateDualPdf() {
         const px     = 3.78;
         const qMm    = dualLayout.qr_size_mm;
         const labelW = qMm * 2 + 18;            // 2 QR + ช่องว่าง + padding
-        const cols   = Math.max(1, Math.floor((pw - margin * 2 + gap) / (labelW + gap)));
 
-        let col = 0, row = 0, firstPage = true, labelH = null;
-
+        // 1) Render ทุกป้ายเป็นรูป + วัดความสูงจริง (อิงสัดส่วน canvas → ข้อความ/QR ไม่ถูกตัด)
+        const labels = [];
         for (const it of printItems.value) {
-            const rQr = await getQrRepairDataUrl(it.id_code, 420);
-            const dQr = await getQrDataUrl(it.id_code, 420);
+            const rQr = await getQrRepairDataUrl(it.id_code, 440);
+            const dQr = await getQrDataUrl(it.id_code, 440);
 
             const wrapper = document.createElement('div');
             wrapper.style.cssText = `width:${labelW * px}px;`;
             wrapper.innerHTML = buildDualLabelHtml(it, rQr, dQr, qMm);
             container.appendChild(wrapper);
 
-            const canvas = await html2canvas(wrapper, { scale: 2, useCORS: true, logging: false, backgroundColor: '#ffffff' });
-            if (labelH === null) labelH = labelW * (canvas.height / canvas.width); // keep aspect → no stretch
-
-            if (!firstPage && (margin + row * (labelH + gap)) + labelH > ph - margin) {
-                pdf.addPage(); col = 0; row = 0;
-            }
-            firstPage = false;
-
-            const fcx = margin + col * (labelW + gap);
-            const fcy = margin + row * (labelH + gap);
-            pdf.addImage(canvas.toDataURL('image/png'), 'PNG', fcx, fcy, labelW, labelH);
+            const canvas = await html2canvas(wrapper, { scale: 3, useCORS: true, logging: false, backgroundColor: '#ffffff' });
+            labels.push({ img: canvas.toDataURL('image/png'), hMm: labelW * (canvas.height / canvas.width) });
             container.removeChild(wrapper);
+        }
 
+        // 2) ความสูงเซลล์เท่ากัน = ป้ายที่สูงสุด (กริดสม่ำเสมอ) แล้วจัดรูปกึ่งกลางในเซลล์ (ไม่ยืด)
+        const cellH = Math.max(...labels.map(l => l.hMm));
+        const cols  = Math.max(1, Math.floor((pw - margin * 2 + gap) / (labelW + gap)));
+        const rowsPerPage = Math.max(1, Math.floor((ph - margin * 2 + gap) / (cellH + gap)));
+
+        let col = 0, row = 0;
+        for (const l of labels) {
+            if (row >= rowsPerPage) { pdf.addPage(); row = 0; col = 0; }
+            const fcx = margin + col * (labelW + gap);
+            const fcy = margin + row * (cellH + gap) + (cellH - l.hMm) / 2; // จัดกึ่งกลางแนวตั้ง
+            pdf.addImage(l.img, 'PNG', fcx, fcy, labelW, l.hMm);
             col++;
             if (col >= cols) { col = 0; row++; }
         }
